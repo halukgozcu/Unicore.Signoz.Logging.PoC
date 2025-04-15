@@ -1,8 +1,10 @@
+using Unicore.Claim.Service.Models;
+
 namespace Unicore.Claim.Service.Services;
 
 public interface IClaimProcessorService
 {
-    Task<ClaimProcessResult> ProcessClaimAsync(ClaimRequest request);
+    Task<ClaimProcessingResult> ProcessClaimAsync(ClaimRequest claimRequest);
 }
 
 public record ClaimRequest(

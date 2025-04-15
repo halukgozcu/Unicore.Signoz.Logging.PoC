@@ -56,7 +56,6 @@ public class ClaimController : ControllerBase
 
                 // Record the successful outcome
                 activity?.SetTag("claim.status", result.Status);
-                activity?.SetTag("claim.approved", result.IsApproved);
 
                 // Record request duration
                 stopwatch.Stop();

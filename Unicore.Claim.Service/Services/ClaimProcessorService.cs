@@ -6,7 +6,7 @@ using Unicore.Common.OpenTelemetry.Helpers;
 
 namespace Unicore.Claim.Service.Services;
 
-public class ClaimProcessorService
+public class ClaimProcessorService : IClaimProcessorService
 {
     private readonly ILogger<ClaimProcessorService> _logger;
     private readonly IHttpContextAccessor _httpContextAccessor;
