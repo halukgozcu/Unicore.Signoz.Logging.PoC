@@ -1,112 +1,301 @@
 using System.Diagnostics;
-using System.Text.Json;
 using Unicore.Common.OpenTelemetry.Configuration;
+using Unicore.Common.OpenTelemetry.Helpers;
+using Unicore.Finance.Service.Models;
 
 namespace Unicore.Finance.Service.Services;
 
 public class PaymentService : IPaymentService
 {
-    private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<PaymentService> _logger;
     private readonly TelemetryConfig _telemetryConfig;
+    private readonly Random _random = new();
 
-    public PaymentService(
-        IHttpClientFactory httpClientFactory,
-        ILogger<PaymentService> logger,
-        TelemetryConfig telemetryConfig)
+    public PaymentService(ILogger<PaymentService> logger, TelemetryConfig telemetryConfig)
     {
-        _httpClientFactory = httpClientFactory;
         _logger = logger;
         _telemetryConfig = telemetryConfig;
     }
 
     public async Task<PaymentResult> ProcessPaymentAsync(PaymentRequest request)
     {
-        // Use Meter to create counter instead of accessing non-existent property
-        _telemetryConfig.Meter.CreateCounter<long>("app.payment.counter").Add(1);
-
-        // Create a custom activity (span) for payment processing
+        // Create a main span for payment processing
         using var activity = _telemetryConfig.ActivitySource.StartActivity("ProcessPayment");
-        activity?.SetTag("claim.id", request.ClaimId);
-        activity?.SetTag("policy.number", request.PolicyNumber);
+        activity?.SetTag("payment.claim_id", request.ClaimId);
         activity?.SetTag("payment.amount", request.Amount);
+        activity?.SetTag("payment.policy_number", request.PolicyNumber);
+        activity?.AddEvent(new ActivityEvent("PaymentProcessingStarted"));
 
-        _logger.LogInformation("Processing payment for claim {ClaimId}, policy {PolicyNumber}, amount {Amount}",
-            request.ClaimId, request.PolicyNumber, request.Amount);
+        var stopwatch = Stopwatch.StartNew();
+
+        // Increment metrics
+        _telemetryConfig.RequestCounter.Add(1,
+            new KeyValuePair<string, object?>("operation", "ProcessPayment"),
+            new KeyValuePair<string, object?>("payment.amount_range", GetAmountRange(request.Amount)));
+
+        _logger.LogInformation(
+            "Processing payment of {Amount:C} for claim {ClaimId}, policy {PolicyNumber}",
+            request.Amount, request.ClaimId, request.PolicyNumber);
 
         try
         {
-            // Call policy service to validate the policy
-            var policyResult = await ValidatePolicyAsync(request.PolicyNumber);
-
-            if (!policyResult.IsValid)
+            // Simulate validation checks with child span
+            using (var validationActivity = TraceHelper.CreateNestedSpan("PaymentValidation", "BusinessLogic",
+                new Dictionary<string, object?>
+                {
+                    ["payment.claim_id"] = request.ClaimId,
+                    ["payment.amount"] = request.Amount
+                }))
             {
-                _logger.LogWarning("Payment rejected: Invalid policy {PolicyNumber}", request.PolicyNumber);
-                return new PaymentResult("Rejected", false, "Invalid policy");
+                // Simulate validation delay
+                await Task.Delay(30);
+
+                // Simulate validation error (1 in 15 chance)
+                if (_random.Next(15) == 0)
+                {
+                    TraceHelper.RecordWarning(_logger,
+                        "Payment validation failed",
+                        "Amount exceeds single payment threshold",
+                        "PaymentValidator",
+                        new Dictionary<string, object>
+                        {
+                            ["payment.amount"] = request.Amount,
+                            ["payment.threshold"] = 5000m,
+                            ["payment.exceeded_by"] = request.Amount > 5000m ? (request.Amount - 5000m) : 0
+                        });
+
+                    validationActivity?.SetTag("validation.passed", false);
+                    validationActivity?.SetTag("validation.error", "amount_exceeds_threshold");
+
+                    activity?.SetTag("payment.rejected", true);
+                    activity?.SetTag("payment.rejection_reason", "Amount exceeds threshold");
+
+                    TraceHelper.RecordHttpResponse(System.Net.HttpStatusCode.BadRequest,
+                        "/api/finance/process-payment", "Payment amount exceeds threshold", _logger);
+
+                    return new PaymentResult
+                    {
+                        Success = false,
+                        Message = "Payment amount exceeds single payment threshold"
+                    };
+                }
+
+                validationActivity?.SetTag("validation.passed", true);
+                validationActivity?.AddEvent(new ActivityEvent("ValidationPassed"));
             }
 
-            // Use the correct property name for the coverage amount - this may vary depending on your actual model
-            decimal coverageAmount = 0;
-
-            // If using policyResult.CoverageAmount
-            if (policyResult.GetType().GetProperty("CoverageAmount") != null)
+            // Simulate fund availability check
+            using (var fundsActivity = TraceHelper.CreateNestedSpan("FundAvailabilityCheck", "BusinessLogic",
+                new Dictionary<string, object?>
+                {
+                    ["payment.amount"] = request.Amount
+                }))
             {
-                coverageAmount = (decimal)policyResult.GetType().GetProperty("CoverageAmount").GetValue(policyResult);
+                await Task.Delay(40);
+
+                // Simulate insufficient funds (1 in 20 chance)
+                if (_random.Next(20) == 0)
+                {
+                    TraceHelper.RecordWarning(_logger,
+                        "Insufficient funds for payment",
+                        "Available funds are below required amount",
+                        "FundsChecker",
+                        new Dictionary<string, object>
+                        {
+                            ["payment.amount"] = request.Amount,
+                            ["funds.available"] = request.Amount * 0.8m,
+                            ["funds.shortfall"] = request.Amount * 0.2m
+                        });
+
+                    fundsActivity?.SetTag("funds.sufficient", false);
+                    fundsActivity?.SetTag("funds.available", request.Amount * 0.8m);
+                    fundsActivity?.SetTag("funds.shortfall", request.Amount * 0.2m);
+
+                    activity?.SetTag("payment.rejected", true);
+                    activity?.SetTag("payment.rejection_reason", "Insufficient funds");
+
+                    TraceHelper.RecordHttpResponse(System.Net.HttpStatusCode.BadRequest,
+                        "/api/finance/process-payment", "Insufficient funds for payment", _logger);
+
+                    return new PaymentResult
+                    {
+                        Success = false,
+                        Message = "Insufficient funds to process payment"
+                    };
+                }
+
+                fundsActivity?.SetTag("funds.sufficient", true);
+                fundsActivity?.AddEvent(new ActivityEvent("FundsAvailable"));
             }
-            // Otherwise try for Coverage property
-            else if (policyResult.GetType().GetProperty("Coverage") != null)
+
+            // Simulate payment gateway interaction with possible errors
+            using (var gatewayActivity = TraceHelper.CreateNestedSpan("PaymentGatewayRequest", "ExternalService",
+                new Dictionary<string, object?>
+                {
+                    ["payment.amount"] = request.Amount,
+                    ["payment.gateway"] = "MockPaymentProcessor"
+                }))
             {
-                coverageAmount = (decimal)policyResult.GetType().GetProperty("Coverage").GetValue(policyResult);
+                // Simulate external payment gateway call
+                await Task.Delay(100 + _random.Next(100)); // Variable gateway response time
+
+                // Simulate gateway timeout or error (1 in 10 chance)
+                if (_random.Next(10) == 0)
+                {
+                    // Determine if it's a timeout or other error
+                    if (_random.Next(2) == 0)
+                    {
+                        // Gateway timeout
+                        var timeoutException = new TimeoutException("Payment gateway response timeout after 30 seconds");
+                        TraceHelper.RecordException(timeoutException, _logger, "PaymentGatewayRequest", "ExternalGateway");
+
+                        gatewayActivity?.SetTag("error.timeout", true);
+                        gatewayActivity?.SetTag("error.timeout_seconds", 30);
+
+                        activity?.SetTag("payment.error", "gateway_timeout");
+
+                        TraceHelper.RecordHttpResponse(System.Net.HttpStatusCode.GatewayTimeout,
+                            "https://payment-gateway.example.com/process", "Gateway timeout", _logger);
+
+                        return new PaymentResult
+                        {
+                            Success = false,
+                            Message = "Payment gateway timeout"
+                        };
+                    }
+                    else
+                    {
+                        // Gateway error
+                        var gatewayException = new InvalidOperationException("Payment gateway rejected transaction: Insufficient funds");
+                        TraceHelper.RecordException(gatewayException, _logger, "PaymentGatewayRequest", "ExternalGateway");
+
+                        gatewayActivity?.SetTag("gateway.error_code", "INSUFFICIENT_FUNDS");
+                        gatewayActivity?.SetTag("gateway.transaction_id", Guid.NewGuid().ToString());
+
+                        activity?.SetTag("payment.error", "gateway_rejection");
+
+                        TraceHelper.RecordHttpResponse(System.Net.HttpStatusCode.BadRequest,
+                            "https://payment-gateway.example.com/process", "Gateway rejected payment", _logger);
+
+                        return new PaymentResult
+                        {
+                            Success = false,
+                            Message = "Payment gateway rejected the transaction"
+                        };
+                    }
+                }
+
+                // Generate transaction reference 
+                var transactionId = Guid.NewGuid().ToString();
+
+                gatewayActivity?.SetTag("gateway.transaction_id", transactionId);
+                gatewayActivity?.SetTag("gateway.status", "approved");
+                gatewayActivity?.SetTag("gateway.response_time_ms", gatewayActivity.Duration.TotalMilliseconds);
+                gatewayActivity?.AddEvent(new ActivityEvent("GatewayTransactionComplete"));
+
+                // Record payment transaction in database
+                using (var dbActivity = TraceHelper.CreateNestedSpan("PaymentRecordSave", "Database",
+                    new Dictionary<string, object?>
+                    {
+                        ["db.operation"] = "insert",
+                        ["payment.claim_id"] = request.ClaimId,
+                        ["payment.transaction_id"] = transactionId
+                    }))
+                {
+                    // Simulate database insert
+                    await Task.Delay(30);
+
+                    // Simulate rare database error (1 in 25 chance)
+                    if (_random.Next(25) == 0)
+                    {
+                        var dbException = new Exception("Database constraint violation: Duplicate payment ID");
+                        TraceHelper.RecordException(dbException, _logger, "DatabaseOperation", "PaymentDatabase");
+
+                        dbActivity?.SetTag("db.error", true);
+                        dbActivity?.SetTag("db.error_code", "CONSTRAINT_VIOLATION");
+
+                        activity?.SetTag("payment.error", "database_error");
+
+                        throw dbException; // This will be caught by outer try/catch
+                    }
+
+                    dbActivity?.SetTag("db.record_id", Guid.NewGuid().ToString());
+                    dbActivity?.SetTag("db.success", true);
+                    dbActivity?.AddEvent(new ActivityEvent("DatabaseRecordCreated"));
+                }
+
+                // Generate payment ID
+                var paymentId = $"PAY-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString()[..8]}";
+
+                // Record success metrics
+                stopwatch.Stop();
+                _telemetryConfig.SuccessfulRequests.Add(1,
+                    new KeyValuePair<string, object?>("operation", "ProcessPayment"));
+
+                _telemetryConfig.RequestDuration.Record(stopwatch.ElapsedMilliseconds,
+                    new KeyValuePair<string, object?>("operation", "ProcessPayment"),
+                    new KeyValuePair<string, object?>("payment.amount_range", GetAmountRange(request.Amount)));
+
+                activity?.SetTag("payment.processing_time_ms", stopwatch.ElapsedMilliseconds);
+                activity?.SetTag("payment.id", paymentId);
+                activity?.SetTag("payment.success", true);
+                activity?.SetTag("payment.transaction_id", transactionId);
+                activity?.AddEvent(new ActivityEvent("PaymentProcessingCompleted"));
+
+                _logger.LogInformation(
+                    "Payment {PaymentId} processed successfully in {ProcessingTimeMs}ms for claim {ClaimId}. " +
+                    "Transaction ID: {TransactionId}",
+                    paymentId, stopwatch.ElapsedMilliseconds, request.ClaimId, transactionId);
+
+                TraceHelper.RecordHttpResponse(System.Net.HttpStatusCode.OK,
+                    "/api/finance/process-payment", "Payment processed successfully", _logger);
+
+                return new PaymentResult
+                {
+                    PaymentId = paymentId,
+                    Success = true,
+                    TransactionReference = transactionId
+                };
             }
-
-            if (request.Amount > coverageAmount)
-            {
-                _logger.LogWarning(
-                    "Payment partially approved: Amount {Amount} exceeds coverage {Coverage} for policy {PolicyNumber}",
-                    request.Amount, coverageAmount, request.PolicyNumber);
-                return new PaymentResult("PartiallyApproved", true,
-                    $"Amount exceeds coverage. Approved amount: {coverageAmount}");
-            }
-
-            // Simulate payment processing delay
-            await Task.Delay(100);
-
-            _logger.LogInformation("Payment approved for claim {ClaimId}, amount {Amount}", request.ClaimId,
-                request.Amount);
-            return new PaymentResult("Approved", true, "Payment processed successfully");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing payment for claim {ClaimId}", request.ClaimId);
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            // Record the exception in the main processing span
+            TraceHelper.RecordException(ex, _logger, "ProcessPayment", "PaymentService");
 
-            return new PaymentResult("Failed", false, $"Error: {ex.Message}");
+            // Record failure metrics
+            stopwatch.Stop();
+            _telemetryConfig.FailedRequests.Add(1,
+                new KeyValuePair<string, object?>("operation", "ProcessPayment"),
+                new KeyValuePair<string, object?>("error", ex.GetType().Name));
+
+            activity?.SetTag("payment.processing_time_ms", stopwatch.ElapsedMilliseconds);
+            activity?.SetTag("payment.error", true);
+            activity?.AddEvent(new ActivityEvent("PaymentProcessingFailed"));
+
+            _logger.LogError(ex,
+                "Payment processing failed for claim {ClaimId}: {ErrorMessage}",
+                request.ClaimId, ex.Message);
+
+            TraceHelper.RecordHttpResponse(System.Net.HttpStatusCode.InternalServerError,
+                "/api/finance/process-payment", $"Payment processing error: {ex.Message}", _logger);
+
+            return new PaymentResult
+            {
+                Success = false,
+                Message = $"Payment processing error: {ex.Message}"
+            };
         }
     }
 
-    public async Task<PolicyValidationResult> ValidatePolicyAsync(string policyNumber)
+    private string GetAmountRange(decimal amount)
     {
-        using var activity = _telemetryConfig.ActivitySource.StartActivity("CallPolicyService");
-        activity?.SetTag("policy.number", policyNumber);
-
-        try
+        return amount switch
         {
-            var client = _httpClientFactory.CreateClient("policy");
-            var response = await client.GetAsync($"/api/policy/validate/{policyNumber}");
-            response.EnsureSuccessStatusCode();
-
-            var responseContent = await response.Content.ReadAsStringAsync();
-            var policyResult = JsonSerializer.Deserialize<PolicyValidationResult>(
-                responseContent,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-
-            return policyResult ?? new PolicyValidationResult(false, false, 0);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error validating policy {PolicyNumber}", policyNumber);
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            throw;
-        }
+            <= 100 => "small",
+            <= 1000 => "medium",
+            <= 5000 => "large",
+            _ => "very_large"
+        };
     }
 }

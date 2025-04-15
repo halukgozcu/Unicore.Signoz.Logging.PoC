@@ -5,13 +5,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ServiceName>Unicore Claim Service</ServiceName>
   </PropertyGroup>
-
   <ItemGroup>
-        <!-- Swagger packages -->
+    <!-- Swagger packages -->
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     <PackageReference Include="Swashbuckle.AspNetCore.Annotations" Version="6.5.0" />
   </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\Unicore.Common.OpenTelemetry\Unicore.Common.OpenTelemetry.csproj" />
   </ItemGroup>
