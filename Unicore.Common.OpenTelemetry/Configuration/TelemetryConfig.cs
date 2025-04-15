@@ -8,6 +8,9 @@ public class TelemetryConfig
 {
     public string ServiceName { get; }
     public string DisplayName { get; }
+    public string ServiceNamespace { get; }
+    public string ServiceVersion { get; }
+    public string Environment { get; }
 
     // Metrics
     public readonly Meter Meter;
@@ -26,6 +29,9 @@ public class TelemetryConfig
     {
         ServiceName = serviceName;
         DisplayName = displayName;
+        ServiceNamespace = "Unicore";
+        ServiceVersion = GetType().Assembly.GetName().Version?.ToString() ?? "1.0.0";
+        Environment = System.Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Development";
 
         // Initialize metrics
         Meter = new Meter(serviceName);
@@ -38,21 +44,19 @@ public class TelemetryConfig
         ActivitySource = new ActivitySource(serviceName);
 
         // Initialize resource builder
-        var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Development";
-        var instanceId = Environment.MachineName;
-        var version = GetType().Assembly.GetName().Version?.ToString() ?? "1.0.0";
+        var instanceId = System.Environment.MachineName;
 
         ResourceBuilder = ResourceBuilder
             .CreateDefault()
-            .AddService(serviceName: serviceName, serviceVersion: version)
+            .AddService(serviceName: serviceName, serviceVersion: ServiceVersion)
             .AddAttributes(new Dictionary<string, object>
             {
                 ["service.display_name"] = displayName,
                 ["service.instance.id"] = instanceId,
-                ["deployment.environment"] = environment,
-                ["host.name"] = Environment.MachineName,
-                ["os.type"] = Environment.OSVersion.Platform.ToString(),
-                ["os.version"] = Environment.OSVersion.VersionString
+                ["deployment.environment"] = Environment,
+                ["host.name"] = System.Environment.MachineName,
+                ["os.type"] = System.Environment.OSVersion.Platform.ToString(),
+                ["os.version"] = System.Environment.OSVersion.VersionString
             })
             .AddTelemetrySdk()
             .AddEnvironmentVariableDetector();

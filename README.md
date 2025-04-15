@@ -53,7 +53,24 @@ The demo consists of three microservices:
 
 ### 2. Run the Services
 
-Start each service in separate terminal windows:
+You can run the services either manually or using the provided scripts.
+
+#### Using Scripts (Recommended)
+
+The `UnicoreScripts` directory contains scripts to manage all services:
+
+```bash
+# Start all services
+cd UnicoreScripts
+./watch-services.sh
+
+# Stop all services
+./stop-services.sh
+```
+
+#### Manual Start
+
+Alternatively, you can start each service manually in separate terminal windows:
 
 ```bash
 # Terminal 1
@@ -142,8 +159,13 @@ Each service has its own Swagger UI available at:
 
 ## Stopping the Services
 
-To stop SigNoz:
+You can stop the services using either:
 ```bash
+# Using the stop script (Recommended)
+cd UnicoreScripts
+./stop-services.sh
+
+# OR stop SigNoz only
 cd signoz/deploy/docker/
 docker-compose down
 ```

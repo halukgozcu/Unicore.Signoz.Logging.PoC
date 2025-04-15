@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Http;
 using Unicore.Common.OpenTelemetry.Configuration;
+using Unicore.Claim.Service.Models;
 
 namespace Unicore.Claim.Service.Services;
 
@@ -10,22 +12,26 @@ public class ClaimProcessorService : IClaimProcessorService
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<ClaimProcessorService> _logger;
     private readonly TelemetryConfig _telemetryConfig;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
     public ClaimProcessorService(
         IHttpClientFactory httpClientFactory,
         ILogger<ClaimProcessorService> logger,
-        TelemetryConfig telemetryConfig)
+        TelemetryConfig telemetryConfig,
+        IHttpContextAccessor httpContextAccessor)
     {
         _httpClientFactory = httpClientFactory;
         _logger = logger;
         _telemetryConfig = telemetryConfig;
+        _httpContextAccessor = httpContextAccessor;
     }
 
     public async Task<ClaimProcessResult> ProcessClaimAsync(ClaimRequest request)
     {
-        _logger.LogInformation("Processing claim {ClaimId} for policy {PolicyNumber} with amount {Amount}",
-            request.ClaimId, request.PolicyNumber, request.Amount);
 
+        _logger.LogDebug(
+            "Processing claim {ClaimId} with amount {Amount}",
+            request.ClaimId, request.Amount);
         // Increment our custom counter metric
         _telemetryConfig.RequestCounter.Add(1);
 
@@ -56,7 +62,17 @@ public class ClaimProcessorService : IClaimProcessorService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing claim {ClaimId}", request.ClaimId);
+            _logger.LogError(
+                ex,
+                "Failed to process claim {ClaimId}. Error Type: {ErrorType}, Error Code: {ErrorCode}, Component: {Component}. " +
+                "Correlation ID: {CorrelationId}, Attempt: {AttemptNumber}",
+                request.ClaimId,
+                ex.GetType().Name,
+                "UnknownErrorCode",
+                "ClaimProcessor",
+                Activity.Current?.TraceId.ToString() ?? "no-trace-id",
+                1);
+
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
 
             return new ClaimProcessResult(
@@ -98,11 +114,32 @@ public class ClaimProcessorService : IClaimProcessorService
                 responseContent,
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
+            _logger.LogDebug(
+                "Claim {ClaimId} processing metrics - Duration: {ProcessingTimeMs}ms, " +
+                "Database Calls: {DbCalls}, Cache Hits: {CacheHits}, Cache Misses: {CacheMisses}, " +
+                "Memory Usage: {MemoryUsageMB}MB",
+                request.ClaimId,
+                100, // Simulated processing time
+                5,   // Simulated database calls
+                3,   // Simulated cache hits
+                2,   // Simulated cache misses
+                50); // Simulated memory usage
+
             return paymentResult ?? new PaymentResult("Unknown", false, "Failed to deserialize response");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error calling finance service for claim {ClaimId}", request.ClaimId);
+            _logger.LogError(
+                ex,
+                "Failed to process claim {ClaimId}. Error Type: {ErrorType}, Error Code: {ErrorCode}, Component: {Component}. " +
+                "Correlation ID: {CorrelationId}, Attempt: {AttemptNumber}",
+                request.ClaimId,
+                ex.GetType().Name,
+                "UnknownErrorCode",
+                "FinanceService",
+                Activity.Current?.TraceId.ToString() ?? "no-trace-id",
+                1);
+
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             throw;
         }

@@ -8,6 +8,7 @@ using OpenTelemetry.Trace;
 using OpenTelemetry.Metrics;
 using Serilog;
 using Serilog.Exceptions;
+using Serilog.Sinks.PeriodicBatching;
 using Unicore.Common.OpenTelemetry.Middleware;
 using Unicore.Common.OpenTelemetry.Services;
 
@@ -48,8 +49,7 @@ public static class OpenTelemetryExtensions
         return hostBuilder.UseSerilog((context, services, loggerConfiguration) =>
         {
             var version = applicationVersion ?? typeof(OpenTelemetryExtensions).Assembly.GetName().Version?.ToString() ?? "1.0.0";
-
-            // Get OpenTelemetry endpoint from configuration
+            var env = context.HostingEnvironment.EnvironmentName;
             var otlpEndpoint = context.Configuration.GetValue<string>("OpenTelemetry:Endpoint") ?? "http://localhost:4317";
 
             loggerConfiguration
@@ -61,18 +61,70 @@ public static class OpenTelemetryExtensions
                 .Enrich.WithEnvironmentName()
                 .Enrich.WithExceptionDetails()
                 .Enrich.WithProperty("ServiceName", serviceName)
-                .Enrich.WithProperty("ApplicationVersion", version)
-                .WriteTo.Console(outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff}] [{Level:u3}] [{ServiceName}] [TraceId: {TraceId}] [{ThreadId}] [{ClientIp}] {Message:lj}{NewLine}{Exception}")
+                .Enrich.WithProperty("ServiceVersion", version)
+                .Enrich.WithProperty("Environment", env)
+                // Add timestamp in multiple formats
+                .Enrich.WithProperty("TimestampUtc", DateTimeOffset.UtcNow)
+                .Enrich.WithProperty("UnixTimestamp", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())
+                // Output template with extended information
+                .WriteTo.Console(outputTemplate:
+                    "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff}] " +
+                    "[{Level:u3}] " +
+                    "[{ServiceName}] " +
+                    "[{Environment}] " +
+                    "[TraceId: {TraceId}] " +
+                    "[SpanId: {SpanId}] " +
+                    "[{ThreadId}] " +
+                    "[{SourceContext}] " +
+                    "{Message:lj}" +
+                    "{NewLine}{Exception}" +
+                    "{NewLine}Properties: " +
+                    "ThreadId={ThreadId}, " +
+                    "ProcessId={ProcessId}, " +
+                    "MachineName={MachineName}" +
+                    "{NewLine}")
                 .WriteTo.OpenTelemetry(options =>
                 {
                     options.ResourceAttributes = new Dictionary<string, object>
                     {
                         ["service.name"] = serviceName,
                         ["service.version"] = version,
-                        ["deployment.environment"] = context.HostingEnvironment.EnvironmentName
+                        ["service.instance.id"] = Environment.MachineName,
+                        ["deployment.environment"] = env,
+                        ["host.name"] = Environment.MachineName,
+                        ["os.type"] = Environment.OSVersion.Platform.ToString(),
+                        ["process.runtime.name"] = ".NET",
+                        ["process.runtime.version"] = Environment.Version.ToString()
                     };
                     options.Endpoint = otlpEndpoint;
+                    // Remove BatchSizeLimitBytes and ExportIntervalMilliseconds
+                    // Use correct batching options
+                    options.Protocol = Serilog.Sinks.OpenTelemetry.OtlpProtocol.Grpc;
                 });
+
+            // Add debug output in development
+            if (context.HostingEnvironment.IsDevelopment())
+            {
+                loggerConfiguration.WriteTo.Debug();
+            }
+
+            // Add file logging with rolling interval
+            loggerConfiguration.WriteTo.File(
+                path: $"logs/{serviceName}-{DateTime.UtcNow:yyyy-MM-dd}.log",
+                rollingInterval: RollingInterval.Day,
+                retainedFileCountLimit: 7,
+                fileSizeLimitBytes: 5 * 1024 * 1024, // 5MB
+                outputTemplate:
+                    "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} " +
+                    "[{Level:u3}] " +
+                    "{ServiceName} " +
+                    "{Environment} " +
+                    "TraceId:{TraceId} " +
+                    "SpanId:{SpanId} " +
+                    "RequestId:{RequestId} " +
+                    "RequestPath:{RequestPath} " +
+                    "{Message:lj} " +
+                    "{NewLine}{Exception}");
         });
     }
 
