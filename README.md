@@ -1,6 +1,6 @@
-# Unicore SigNoz OpenTelemetry Demo
+# OpenTelemetry with ELK Stack Demo
 
-This project demonstrates the implementation of OpenTelemetry with Serilog for distributed tracing, metrics, and logging across multiple microservices.
+This project demonstrates the implementation of OpenTelemetry with Serilog for distributed tracing, metrics, and logging using the ELK Stack (Elasticsearch, Logstash, Kibana).
 
 ## Services
 
@@ -14,7 +14,11 @@ The demo consists of three microservices:
 - **Distributed Tracing**: Using OpenTelemetry to trace requests across services
 - **Metrics Collection**: Custom and system metrics tracked with OpenTelemetry
 - **Logging**: Serilog integrated with OpenTelemetry for contextualized logs
-- **SigNoz**: Telemetry backend that collects and visualizes traces, metrics, and logs
+- **ELK Stack**: 
+  - Elasticsearch for storage and search
+  - Logstash for log processing
+  - Kibana for visualization
+- **OpenTelemetry Collector**: For collecting and forwarding telemetry data
 - **Load Testing**: k6 scripts to simulate high load on the services
 
 ## Prerequisites
@@ -26,32 +30,19 @@ The demo consists of three microservices:
 
 ## Setup
 
-### 1. Install & Start SigNoz using Docker
+### 1. Start ELK Stack using Docker Compose
 
-1. Clone the SigNoz repository:
-   ```bash
-   git clone -b main https://github.com/SigNoz/signoz.git
-   ```
+```bash
+cd ELKStack
+docker-compose up -d
+```
 
-2. Navigate to the SigNoz directory:
-   ```bash
-   cd signoz/deploy/docker/
-   ```
-
-3. Run the SigNoz installation script:
-   ```bash
-   ./install.sh
-   ```
-
-4. Once the installation is complete, SigNoz UI will be available at [http://localhost:3301](http://localhost:3301)
-
-   **Note:** The default credentials are:
-   - Email: admin@signoz.io
-   - Password: admin
-
-5. The OTLP endpoints will be:
-   - OTLP HTTP: http://localhost:4318
-   - OTLP gRPC: http://localhost:4317
+The following services will be available:
+- Elasticsearch: http://localhost:9200
+- Kibana: http://localhost:5601
+- OpenTelemetry Collector:
+  - OTLP HTTP: http://localhost:5318
+  - OTLP gRPC: http://localhost:5317
 
 ### 2. Run the Services
 
@@ -213,15 +204,13 @@ After running the tests, k6 will display summary statistics showing:
 
 These results help identify performance bottlenecks and verify that your distributed tracing and metrics collection work correctly under load.
 
-## Exploring Telemetry in SigNoz
+## Exploring Telemetry in Kibana
 
-1. Open SigNoz UI at [http://localhost:3301](http://localhost:3301)
+1. Open Kibana UI at [http://localhost:5601](http://localhost:5601)
 2. Navigate to the following sections:
-   - **Traces**: View the full distributed traces between services
-   - **Metrics**: Check custom metrics like request counters and application metrics
-   - **Logs**: Examine the structured logs from all services with trace correlation
+   - **Discover**: View logs and traces
    - **Dashboards**: Create custom dashboards to monitor your application
-   - **Alerts & Incidents**: Configure alerts based on metrics and trace data
+   - **Alerts**: Configure alerts based on metrics and trace data
 
 ## Features Implemented
 
@@ -244,19 +233,19 @@ Each service has its own Swagger UI available at:
 
 ## Troubleshooting
 
-### SigNoz Issues
+### ELK Stack Issues
 
-- If SigNoz UI is not accessible, check Docker logs:
+- If Kibana UI is not accessible, check Docker logs:
   ```bash
-  docker-compose -f signoz/deploy/docker/docker-compose.yaml logs -f
+  docker-compose -f ELKStack/docker-compose.yaml logs -f
   ```
 
 - Ensure you have allocated enough memory to Docker (at least 4GB)
 
-- If you encounter database connectivity issues:
+- If you encounter Elasticsearch connectivity issues:
   ```bash
-  docker-compose -f signoz/deploy/docker/docker-compose.yaml down -v
-  docker-compose -f signoz/deploy/docker/docker-compose.yaml up -d
+  docker-compose -f ELKStack/docker-compose.yaml down -v
+  docker-compose -f ELKStack/docker-compose.yaml up -d
   ```
 
 ### Service Issues
@@ -284,13 +273,13 @@ You can stop the services using either:
 cd UnicoreScripts
 ./stop-services.sh
 
-# OR stop SigNoz only
-cd signoz/deploy/docker/
+# OR stop ELK Stack only
+cd ELKStack
 docker-compose down
 ```
 
-To completely remove all SigNoz data:
+To completely remove all ELK Stack data:
 ```bash
-cd signoz/deploy/docker/
+cd ELKStack
 docker-compose down -v
 ```
