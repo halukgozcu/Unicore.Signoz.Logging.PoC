@@ -50,7 +50,7 @@ public static class OpenTelemetryExtensions
         {
             var version = applicationVersion ?? typeof(OpenTelemetryExtensions).Assembly.GetName().Version?.ToString() ?? "1.0.0";
             var env = context.HostingEnvironment.EnvironmentName;
-            var otlpEndpoint = context.Configuration.GetValue<string>("OpenTelemetry:Endpoint") ?? "http://localhost:5417";
+            var otlpEndpoint = context.Configuration.GetValue<string>("OpenTelemetry:Endpoint") ?? "http://localhost:5317";
 
             loggerConfiguration
                 .ReadFrom.Configuration(context.Configuration)
@@ -177,7 +177,7 @@ public static class OpenTelemetryExtensions
         var configuration = serviceProvider?.GetService<IConfiguration>();
 
         // Get OpenTelemetry endpoint from configuration
-        var otlpEndpoint = configuration?.GetValue<string>("OpenTelemetry:Endpoint") ?? "http://localhost:5417";
+        var otlpEndpoint = configuration?.GetValue<string>("OpenTelemetry:Endpoint") ?? "http://localhost:5317";
 
         return builder
             .SetResourceBuilder(config.ResourceBuilder)
@@ -300,7 +300,7 @@ public static class OpenTelemetryExtensions
         var configuration = serviceProvider?.GetService<IConfiguration>();
 
         // Get OpenTelemetry endpoint from configuration
-        var otlpEndpoint = configuration?.GetValue<string>("OpenTelemetry:Endpoint") ?? "http://localhost:5417";
+        var otlpEndpoint = configuration?.GetValue<string>("OpenTelemetry:Endpoint") ?? "http://localhost:5317";
 
         return builder
             .SetResourceBuilder(config.ResourceBuilder)

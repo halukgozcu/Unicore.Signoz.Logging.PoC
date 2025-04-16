@@ -2,49 +2,41 @@ receivers:
   otlp:
     protocols:
       grpc:
-        endpoint: "0.0.0.0:5317"  # Changed from 4317
+        endpoint: "0.0.0.0:5317"
       http:
-        endpoint: "0.0.0.0:5318"  # Changed from 4318
-
-  # Add other receivers as needed
-  prometheus:
-    config:
-      scrape_configs:
-        - job_name: "otel-collector"
-          scrape_interval: 10s
-          static_configs:
-            - targets: ["0.0.0.0:8888"]
+        endpoint: "0.0.0.0:5318"
 
 processors:
   batch:
-    timeout: 10s
-    send_batch_size: 1000
+    timeout: 5s
+    send_batch_size: 100
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 500
+    spike_limit_mib: 100
+  resource:
+    attributes:
+      - key: service.name
+        value: "test-service"
+        action: upsert
+      - key: environment
+        value: "development"
+        action: upsert
 
 exporters:
   logging:
     verbosity: detailed
   elasticsearch:
     endpoints: ["http://elasticsearch:9200"]
-    logs_index: "otel-logs-%{+YYYY.MM.dd}"
-    traces_index: "otel-traces-%{+YYYY.MM.dd}"
-    mapping:
-      mode: "ecs"
-  otlphttp:
-    endpoint: "http://logstash:8080"
-    tls:
-      insecure: true
+    index: "otel-data"
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
+      processors: [memory_limiter, batch, resource]
       exporters: [logging, elasticsearch]
-    metrics:
-      receivers: [otlp, prometheus]
-      processors: [batch]
-      exporters: [logging, otlphttp]
     logs:
       receivers: [otlp]
-      processors: [batch]
+      processors: [memory_limiter, batch, resource]
       exporters: [logging, elasticsearch]
