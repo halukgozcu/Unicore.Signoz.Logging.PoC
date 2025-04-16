@@ -5,9 +5,9 @@ This project demonstrates the implementation of OpenTelemetry with Serilog for d
 ## Services
 
 The demo consists of three microservices:
-- **Claim Service** (Port 1200): Handles claim processing and communicates with the Finance Service
-- **Finance Service** (Port 1201): Processes payments and communicates with Policy Service
-- **Policy Service** (Port 1202): Validates insurance policies
+- **Claim Service** (Port 1300): Handles claim processing and communicates with the Finance Service
+- **Finance Service** (Port 1301): Processes payments and communicates with Policy Service
+- **Policy Service** (Port 1302): Validates insurance policies
 
 ## Architecture
 
