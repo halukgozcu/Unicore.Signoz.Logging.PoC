@@ -122,7 +122,7 @@ public class ClaimProcessorService : IClaimProcessorService
 
                     // The OpenTelemetry HTTP instrumentation will automatically
                     // create child spans and propagate the trace context
-                    var response = await client.GetAsync($"http://localhost:1202/api/policy/validate/{claimRequest.PolicyNumber}");
+                    var response = await client.GetAsync($"http://localhost:1302/api/policy/validate/{claimRequest.PolicyNumber}");
 
                     if (response.IsSuccessStatusCode)
                     {
@@ -152,7 +152,7 @@ public class ClaimProcessorService : IClaimProcessorService
                         var errorContent = await response.Content.ReadAsStringAsync();
 
                         TraceHelper.RecordHttpResponse(response.StatusCode,
-                            "http://localhost:1202/api/policy/validate",
+                            "http://localhost:1302/api/policy/validate",
                             $"Policy service error: {errorContent}", _logger);
 
                         policyActivity?.SetTag("error", true);
@@ -264,7 +264,7 @@ public class ClaimProcessorService : IClaimProcessorService
                             Amount = claimRequest.Amount
                         };
 
-                        var response = await client.PostAsJsonAsync("http://localhost:1201/api/finance/process-payment", paymentRequest);
+                        var response = await client.PostAsJsonAsync("http://localhost:1301/api/finance/process-payment", paymentRequest);
 
                         if (response.IsSuccessStatusCode)
                         {
@@ -281,7 +281,7 @@ public class ClaimProcessorService : IClaimProcessorService
                         else
                         {
                             TraceHelper.RecordHttpResponse(response.StatusCode,
-                                "http://localhost:1201/api/finance/process-payment",
+                                "http://localhost:1301/api/finance/process-payment",
                                 "Finance service error", _logger);
 
                             var errorContent = await response.Content.ReadAsStringAsync();

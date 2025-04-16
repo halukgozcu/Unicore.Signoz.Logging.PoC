@@ -1,0 +1,44 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:5317"  # Changed from 4317
+      http:
+        endpoint: "0.0.0.0:5318"  # Changed from 4318
+
+  # Add other receivers as needed
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: "otel-collector"
+          scrape_interval: 10s
+          static_configs:
+            - targets: ["0.0.0.0:8888"]
+
+processors:
+  batch:
+    timeout: 10s
+    send_batch_size: 1000
+
+exporters:
+  logging:
+    loglevel: debug
+  logstash:
+    tcp:
+      endpoint: "logstash:5000"
+      timeout: 5s
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [logging, logstash]
+    metrics:
+      receivers: [otlp, prometheus]
+      processors: [batch]
+      exporters: [logging, logstash]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [logging, logstash]

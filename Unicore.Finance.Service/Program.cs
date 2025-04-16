@@ -31,7 +31,7 @@ builder.Services.AddSwaggerGen(c =>
 // Add HTTP client to call other services
 builder.Services.AddHttpClient("policy", client =>
 {
-    client.BaseAddress = new Uri("http://localhost:1202");
+    client.BaseAddress = new Uri("http://localhost:1302"); // Updated to match Policy service port in launchSettings.json
     client.DefaultRequestHeaders.Add("X-Calling-Service", "Unicore.Finance.Service");
 });
 
@@ -64,10 +64,10 @@ try
 
     app.MapControllers();
 
-    Log.Information("Starting Unicore Finance Service on port 1201");
+    Log.Information("Starting Unicore Finance Service");
 
-    // Run application on specific port
-    await app.RunAsync("http://localhost:1201");
+    // Run application using the port from launchSettings.json
+    await app.RunAsync();
 }
 catch (Exception ex)
 {

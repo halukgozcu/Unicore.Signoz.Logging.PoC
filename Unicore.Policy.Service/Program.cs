@@ -57,10 +57,10 @@ try
 
     app.MapControllers();
 
-    Log.Information("Starting Unicore Policy Service on port 1202");
+    Log.Information("Starting Unicore Policy Service");
 
-    // Run application on specific port
-    await app.RunAsync("http://localhost:1202");
+    // Run application using the port from launchSettings.json
+    await app.RunAsync();
 }
 catch (Exception ex)
 {

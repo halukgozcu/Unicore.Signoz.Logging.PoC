@@ -3,6 +3,7 @@
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 echo -e "${RED}Stopping all Unicore services...${NC}"
@@ -17,6 +18,25 @@ for service in "${services[@]}"; do
         kill $pids 2>/dev/null
     else
         echo -e "${RED}No running process found for $service${NC}"
+    fi
+done
+
+# Kill processes running on specific ports
+echo -e "${YELLOW}Checking for processes on service ports...${NC}"
+ports=(1300 1301 1302)
+
+for port in "${ports[@]}"; do
+    # Find process using the port (works on macOS and Linux)
+    if command -v lsof &> /dev/null; then
+        pid=$(lsof -ti :$port)
+        if [ ! -z "$pid" ]; then
+            echo -e "${GREEN}Found process on port $port (PID: $pid), stopping...${NC}"
+            kill $pid 2>/dev/null
+        else
+            echo -e "${RED}No process found on port $port${NC}"
+        fi
+    else
+        echo -e "${RED}lsof command not found, can't check port $port${NC}"
     fi
 done
 

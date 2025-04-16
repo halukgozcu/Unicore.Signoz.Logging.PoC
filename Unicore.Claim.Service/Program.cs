@@ -31,7 +31,7 @@ builder.Services.AddSwaggerGen(c =>
 // Add HTTP client to call other services
 builder.Services.AddHttpClient("finance", client =>
 {
-    client.BaseAddress = new Uri("http://localhost:1201");
+    client.BaseAddress = new Uri("http://localhost:1301");
     client.DefaultRequestHeaders.Add("X-Calling-Service", "Unicore.Claim.Service");
 });
 
@@ -64,10 +64,10 @@ try
 
     app.MapControllers();
 
-    Log.Information("Starting Unicore Claim Service on port 1200");
+    Log.Information("Starting Unicore Claim Service");
 
-    // Run application on specific port
-    await app.RunAsync("http://localhost:1200");
+    // Run application
+    await app.RunAsync();
 }
 catch (Exception ex)
 {

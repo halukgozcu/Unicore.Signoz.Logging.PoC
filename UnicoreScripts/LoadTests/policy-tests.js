@@ -37,7 +37,7 @@ function generatePolicyNumber() {
 }
 
 export default function () {
-  const baseUrl = 'http://localhost:1202'; // Policy Service
+  const baseUrl = 'http://localhost:1302'; // Updated Policy Service port
   
   // Health check endpoint test
   {

@@ -40,7 +40,7 @@ function generateAmount() {
 }
 
 export default function () {
-  const baseUrl = 'http://localhost:1200'; // Claim Service
+  const baseUrl = 'http://localhost:1300'; // Updated Claim Service port
   
   // Health check endpoint test
   {

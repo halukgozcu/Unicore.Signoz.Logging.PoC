@@ -115,9 +115,9 @@ stop_services() {
 trap stop_services EXIT
 
 # Start all services
-start_service "claim" "$CLAIM_SERVICE_PATH" "$CLAIM_LOG" 1200 || exit 1
-start_service "finance" "$FINANCE_SERVICE_PATH" "$FINANCE_LOG" 1201 || exit 1
-start_service "policy" "$POLICY_SERVICE_PATH" "$POLICY_LOG" 1202 || exit 1
+start_service "claim" "$CLAIM_SERVICE_PATH" "$CLAIM_LOG" 1300 || exit 1
+start_service "finance" "$FINANCE_SERVICE_PATH" "$FINANCE_LOG" 1301 || exit 1
+start_service "policy" "$POLICY_SERVICE_PATH" "$POLICY_LOG" 1302 || exit 1
 
 echo -e "${GREEN}All services started successfully${NC}"
 echo -e "${YELLOW}Waiting 5 seconds before starting load tests...${NC}"
