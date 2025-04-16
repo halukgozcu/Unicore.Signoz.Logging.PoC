@@ -22,23 +22,29 @@ processors:
 
 exporters:
   logging:
-    loglevel: debug
-  logstash:
-    tcp:
-      endpoint: "logstash:5000"
-      timeout: 5s
+    verbosity: detailed
+  elasticsearch:
+    endpoints: ["http://elasticsearch:9200"]
+    logs_index: "otel-logs-%{+YYYY.MM.dd}"
+    traces_index: "otel-traces-%{+YYYY.MM.dd}"
+    mapping:
+      mode: "ecs"
+  otlphttp:
+    endpoint: "http://logstash:8080"
+    tls:
+      insecure: true
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [logging, logstash]
+      exporters: [logging, elasticsearch]
     metrics:
       receivers: [otlp, prometheus]
       processors: [batch]
-      exporters: [logging, logstash]
+      exporters: [logging, otlphttp]
     logs:
       receivers: [otlp]
       processors: [batch]
-      exporters: [logging, logstash]
+      exporters: [logging, elasticsearch]

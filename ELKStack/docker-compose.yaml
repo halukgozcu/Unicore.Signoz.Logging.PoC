@@ -52,11 +52,21 @@ services:
       - ./logstash/pipeline:/usr/share/logstash/pipeline
     ports:
       - "5044:5044"
-      - "5000:5000"
+      - "9600:9600"  # Added for monitoring API
     environment:
       - LS_JAVA_OPTS=-Xms512m -Xmx512m
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - LOG_LEVEL=debug
     networks:
       - elk-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -I http://localhost:9600 | grep -q '200' || exit 1"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    command: ["--log.level=debug", "--config.debug"]
 
   # OpenTelemetry Collector
   otel-collector:
@@ -71,9 +81,11 @@ services:
       - "8888:8888"   # Prometheus metrics exposed by the collector
       - "9411:9411"   # Zipkin
     depends_on:
-      - logstash
+      logstash:
+        condition: service_healthy
     networks:
       - elk-network
+    restart: on-failure
 
 networks:
   elk-network:
