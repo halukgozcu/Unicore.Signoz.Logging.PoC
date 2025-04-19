@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using Unicore.Common.OpenTelemetry.Configuration;
+using Unicore.Common.OpenTelemetry.Configurations;
 using Unicore.Common.OpenTelemetry.Helpers;
 
 namespace Unicore.Policy.Service.Services;

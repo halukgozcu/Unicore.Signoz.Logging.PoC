@@ -3,16 +3,16 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using OpenTelemetry.Metrics;
 using Serilog;
 using Serilog.Exceptions;
-using Serilog.Sinks.PeriodicBatching;
-using Unicore.Common.OpenTelemetry.Middleware;
-using Unicore.Common.OpenTelemetry.Services;
+using Unicore.Common.OpenTelemetry.Middlewares;
+using Unicore.Common.OpenTelemetry.Enrichments;
+using Unicore.Common.OpenTelemetry.Configurations;
+using Destructurama;
 
-namespace Unicore.Common.OpenTelemetry.Configuration;
+namespace Unicore.Common.OpenTelemetry.Extensions;
 
 public static class OpenTelemetryExtensions
 {
@@ -33,6 +33,22 @@ public static class OpenTelemetryExtensions
         services.AddSingleton<LogEnricher>();
         services.AddHostedService<LogEnricher>(provider => provider.GetRequiredService<LogEnricher>());
 
+        // Add HTTP context enricher
+        services.AddSingleton<HttpContextEnricher>();
+
+        // Add Hangfire context enricher if Hangfire is detected
+        var hangfireAssembly = AppDomain.CurrentDomain.GetAssemblies()
+            .FirstOrDefault(a => a.GetName().Name?.StartsWith("Hangfire") == true);
+
+        if (hangfireAssembly != null)
+        {
+            services.AddSingleton<HangfireEnricher>();
+        }
+
+        // Add message broker enrichers
+        services.AddSingleton<KafkaConsumerEnricher>();
+        services.AddSingleton<RabbitMQEnricher>();
+
         // Configure OpenTelemetry integration
         services.AddOpenTelemetry()
             .WithTracing(tracerProviderBuilder => ConfigureTracing(tracerProviderBuilder, telemetryConfig))
@@ -52,8 +68,10 @@ public static class OpenTelemetryExtensions
             var env = context.HostingEnvironment.EnvironmentName;
             var otlpEndpoint = context.Configuration.GetValue<string>("OpenTelemetry:Endpoint") ?? "http://localhost:5317";
 
+            // Configure basic Serilog
             loggerConfiguration
                 .ReadFrom.Configuration(context.Configuration)
+                .Destructure.UsingAttributes()
                 .Enrich.FromLogContext()
                 .Enrich.WithMachineName()
                 .Enrich.WithThreadId()
@@ -62,11 +80,42 @@ public static class OpenTelemetryExtensions
                 .Enrich.WithExceptionDetails()
                 .Enrich.WithProperty("ServiceName", serviceName)
                 .Enrich.WithProperty("ServiceVersion", version)
-                .Enrich.WithProperty("Environment", env)
-                // Add timestamp in multiple formats
+                .Enrich.WithProperty("Environment", env);
+
+            // Add HTTP context enricher if available
+            var httpContextEnricher = services.GetService<HttpContextEnricher>();
+            if (httpContextEnricher != null)
+            {
+                loggerConfiguration.Enrich.With(httpContextEnricher);
+            }
+
+            // Add Hangfire enricher if available
+            var hangfireEnricher = services.GetService<HangfireEnricher>();
+            if (hangfireEnricher != null)
+            {
+                loggerConfiguration.Enrich.With(hangfireEnricher);
+            }
+
+            // Add message broker enrichers
+            var kafkaEnricher = services.GetService<KafkaConsumerEnricher>();
+            if (kafkaEnricher != null)
+            {
+                loggerConfiguration.Enrich.With(kafkaEnricher);
+            }
+
+            var rabbitMQEnricher = services.GetService<RabbitMQEnricher>();
+            if (rabbitMQEnricher != null)
+            {
+                loggerConfiguration.Enrich.With(rabbitMQEnricher);
+            }
+
+            // Add timestamp in multiple formats
+            loggerConfiguration
                 .Enrich.WithProperty("TimestampUtc", DateTimeOffset.UtcNow)
-                .Enrich.WithProperty("UnixTimestamp", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())
-                // Output template with extended information
+                .Enrich.WithProperty("UnixTimestamp", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+
+            // Output template with extended information
+            loggerConfiguration
                 .WriteTo.Console(outputTemplate:
                     "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff}] " +
                     "[{Level:u3}] " +
@@ -97,8 +146,6 @@ public static class OpenTelemetryExtensions
                         ["process.runtime.version"] = Environment.Version.ToString()
                     };
                     options.Endpoint = otlpEndpoint;
-                    // Remove BatchSizeLimitBytes and ExportIntervalMilliseconds
-                    // Use correct batching options
                     options.Protocol = Serilog.Sinks.OpenTelemetry.OtlpProtocol.Grpc;
                 });
 
@@ -108,7 +155,7 @@ public static class OpenTelemetryExtensions
                 loggerConfiguration.WriteTo.Debug();
             }
 
-            // Add file logging with rolling interval
+            // Add file logging with rolling interval  
             loggerConfiguration.WriteTo.File(
                 path: $"logs/{serviceName}-{DateTime.UtcNow:yyyy-MM-dd}.log",
                 rollingInterval: RollingInterval.Day,
@@ -125,6 +172,15 @@ public static class OpenTelemetryExtensions
                     "RequestPath:{RequestPath} " +
                     "{Message:lj} " +
                     "{NewLine}{Exception}");
+
+            // Add structured JSON file for machine processing
+            loggerConfiguration.WriteTo.File(
+                formatter: new Serilog.Formatting.Json.JsonFormatter(),
+                path: $"logs/{serviceName}-json-{DateTime.UtcNow:yyyy-MM-dd}.log",
+                rollingInterval: RollingInterval.Day,
+                retainedFileCountLimit: 7,
+                fileSizeLimitBytes: 10 * 1024 * 1024 // 10MB
+            );
         });
     }
 

@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Serilog.Core;
 using Serilog.Events;
 
-namespace Unicore.Common.OpenTelemetry.Services;
+namespace Unicore.Common.OpenTelemetry.Enrichments;
 
 /// <summary>
 /// Enriches Serilog log events with properties from the current HttpContext

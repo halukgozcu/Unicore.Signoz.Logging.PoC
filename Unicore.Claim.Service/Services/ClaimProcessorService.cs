@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Unicore.Claim.Service.Models;
-using Unicore.Common.OpenTelemetry.Configuration;
+using Unicore.Common.OpenTelemetry.Configurations;
 using Unicore.Common.OpenTelemetry.Helpers;
 
 namespace Unicore.Claim.Service.Services;

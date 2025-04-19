@@ -4,9 +4,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
-
   <ItemGroup>
     <!-- OpenTelemetry packages -->
+    <PackageReference Include="Destructurama.Attributed" Version="5.1.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Http.Extensions" Version="2.3.0" />
     <PackageReference Include="OpenTelemetry" Version="1.8.0-alpha.1" />
     <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.8.0-alpha.1" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.8.0-alpha.1" />
@@ -16,7 +17,6 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.7.0" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Process" Version="0.5.0-beta.3" />
     <PackageReference Include="OpenTelemetry.Contrib.Instrumentation.EntityFrameworkCore" Version="1.0.0-beta2" />
-    
     <!-- Serilog packages -->
     <PackageReference Include="Serilog" Version="3.1.1" />
     <PackageReference Include="Serilog.AspNetCore" Version="8.0.0" />
@@ -28,7 +28,6 @@
     <PackageReference Include="Serilog.Settings.Configuration" Version="8.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="5.0.1" />
     <PackageReference Include="Serilog.Sinks.OpenTelemetry" Version="1.2.0" />
-    
     <!-- Microsoft packages -->
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />

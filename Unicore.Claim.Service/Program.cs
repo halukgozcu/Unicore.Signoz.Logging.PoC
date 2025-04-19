@@ -1,7 +1,7 @@
 using Unicore.Claim.Service.Services;
-using Unicore.Common.OpenTelemetry.Configuration;
 using Microsoft.OpenApi.Models;
 using Serilog;
+using Unicore.Common.OpenTelemetry.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
